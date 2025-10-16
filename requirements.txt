@@ -1,4 +1,3 @@
 streamlit
 pandas
-jpype1==1.5.0
-git+git://github.com/joniles/mpxjpy.git
+pyms-project
