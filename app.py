@@ -1,44 +1,55 @@
+# Importiamo le librerie necessarie. Nota la nuova libreria!
 import streamlit as st
 import pandas as pd
-from jpype import *
-from mpxj import *
+from msproject.reader import MppReader
 
+# --- Configurazione della Pagina ---
 st.set_page_config(page_title="RailPath", page_icon="🚆", layout="wide")
+
+# --- Titolo e Descrizione Principale ---
 st.title("🚆 RailPath: Centrale di Controllo Progetti")
 st.markdown("Carica il tuo file di progetto `.mpp` per iniziare l'analisi.")
 
+# --- Sezione di Caricamento File ---
 uploaded_file = st.file_uploader(
     "Seleziona il file di baseline (.mpp)",
     type=["mpp"]
 )
 
+# --- Logica di Elaborazione ---
 if uploaded_file is not None:
     with st.spinner('Analisi del file in corso... attendere prego.'):
         try:
-            # Usiamo il percorso esatto della JVM che viene installata nel nostro Dockerfile
-            jvm_path = "/usr/lib/jvm/java-21-openjdk-amd64/lib/server/libjvm.so"
-            if not isJVMStarted():
-                startJVM(jvm_path, "-ea")
+            # === LA SVOLTA: LEGGERE IL FILE CON LA NUOVA LIBRERIA ===
+            # Non c'è più bisogno di avviare Java. È tutto Python.
+            project = MppReader(uploaded_file)
 
-            project = UniversalProjectReader().read(uploaded_file)
-
+            # --- 1. Estrazione Informazioni Generali ---
             st.header("📄 Informazioni Generali del Progetto")
+
+            # Accediamo alle proprietà del progetto.
+            # Nota: la libreria potrebbe non leggere il costo totale direttamente.
+            # Lo calcoleremo noi sommando i costi delle attività principali.
+            nome_progetto = project.properties.title or "Progetto senza nome"
+            costo_totale = sum(task.cost for task in project.tasks if task.outline_level == 1)
+
             col1, col2 = st.columns(2)
             with col1:
-                st.metric(label="Nome Appalto", value=project.getProjectProperties().getName())
+                st.metric(label="Nome Appalto", value=nome_progetto)
             with col2:
-                costo_totale = project.getProjectProperties().getCost()
                 st.metric(label="Importo Totale Lavori", value=f"€ {costo_totale:,.2f}".replace(",", "."))
 
+            # --- 2. Estrazione TUP e TUF (Milestone) ---
             st.header("🎯 Traguardi di Progetto (TUP e TUF)")
+
             milestones_list = []
-            for task in project.getTasks():
-                if task.getMilestone() or task.getDuration().getDuration() == 0:
+            for task in project.tasks:
+                if task.is_milestone or task.duration == 0:
                     milestones_list.append({
-                        "Nome Traguardo": task.getName(),
-                        "Data Inizio": task.getStart(),
-                        "Data Fine": task.getFinish(),
-                        "Durata (giorni)": task.getDuration().getDuration()
+                        "Nome Traguardo": task.name,
+                        "Data Inizio": task.start_date,
+                        "Data Fine": task.finish_date,
+                        "Durata (giorni)": task.duration
                     })
 
             if milestones_list:
